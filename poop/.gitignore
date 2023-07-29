@@ -1,0 +1,6 @@
+.idea
+.vscode
+.game_files
+*.zip
+.DS_Store
+*.out
