@@ -2,6 +2,7 @@ import random
 
 import comms
 import sys
+import json
 from object_types import ObjectTypes
 
 
@@ -93,18 +94,22 @@ class Game:
 
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
 
-        if self.turn % 2 == 0:
-            move_direction = 0
-        else:
-            move_direction = 180
+        # if self.turn % 2 == 0:
+        #     move_direction = 0
+        # else:
+        #     move_direction = 180
+        move_direction = 90
 
-        shoot_direction = random.uniform(0, random.randint(1, 360))
+        # shoot_direction = random.uniform(0, random.randint(1, 360))
+        for o in self.objects:
+            if self.objects[o]["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
+                print(o, self.objects[o], file=sys.stderr)
 
-
+        # print(json.dumps(self.objects, indent=2), file=sys.stderr)
 
         comms.post_message({
             "move": move_direction,
-            "shoot": shoot_direction
+            # "shoot": shoot_direction
         })
 
 
