@@ -1,6 +1,7 @@
 import random
 
 import comms
+import sys
 from object_types import ObjectTypes
 
 
@@ -55,6 +56,7 @@ class Game:
 
         self.width = biggest_x
         self.height = biggest_y
+        self.turn = 0
 
     def read_next_turn_data(self):
         """
@@ -80,6 +82,7 @@ class Game:
         # NOTE: you might want to do some additional logic here. For example check if a new bullet has been shot or a
         # new powerup is now spawned, etc.
         self.objects.update(self.current_turn_message["message"]["updated_objects"])
+        self.turn += 1
 
         return True
 
@@ -90,8 +93,18 @@ class Game:
 
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
 
+        if self.turn % 2 == 0:
+            move_direction = 0
+        else:
+            move_direction = 180
+
+        shoot_direction = random.uniform(0, random.randint(1, 360))
+
+
+
         comms.post_message({
-            "shoot": random.uniform(0, random.randint(1, 360))
+            "move": move_direction,
+            "shoot": shoot_direction
         })
 
 
