@@ -4,7 +4,31 @@ from object_types import ObjectTypes
 import sys
 import math
 
+# src: size 2 int array
+# dst: size 2 int array
+# calculate angle from src to dst
+def calculateAngle(src, dst):
+    dy = dst[1] - src[1]
+    dx = dst[0] - src[0]
+
+    if dx == 0:
+        if dy > 0:
+            angle = 90
+        else:
+            angle = 270
+    else:
+        acute_angle = math.degrees(math.atan(dy/dx))
+        if dx > 0:
+            angle = acute_angle
+        elif dy > 0 and dx < 0:
+            angle = 180 - acute_angle
+        else:
+            angle = -180 + acute_angle
+
+    return angle
+
 class Game:
+    
     """
     Stores all information about the game and manages the communication cycle.
     Available attributes after initialization will be:
@@ -48,6 +72,8 @@ class Game:
             if game_object["type"] == ObjectTypes.BOUNDARY.value:
                 boundaries.append(game_object)
 
+        print(boundaries, file=sys.stderr)
+
         # The biggest X and the biggest Y among all Xs and Ys of boundaries must be the top right corner of the map.
 
         # Let's find them. This might seem complicated, but you will learn about its details in the tech workshop.
@@ -68,7 +94,6 @@ class Game:
 
         self.width = biggest_x
         self.height = biggest_y
-        self.num = 0
 
 
     def read_next_turn_data(self):
@@ -104,40 +129,13 @@ class Game:
         """
         This is where you should write your bot code to process the data and respond to the game.
         """
-
-
+        
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
-        the_message = self.current_turn_message
-        the_message = the_message['message']
-        print("after: ", the_message)
-
-        try:
-            ourpos = the_message['updated_objects'][self.tank_id]['position']
-            enemytankpos = the_message['updated_objects'][self.enemy_tank_id]['position']
-        except:
-            enemytankpos = [2,2]
-            ourpos = [1,1]
+        print(self.objects[self.tank_id], file=sys.stderr)
+        print(self.objects[self.enemy_tank_id], file=sys.stderr)
         
-        dy = enemytankpos[1] - ourpos[1]
-        dx = enemytankpos[0] - ourpos[0]
+        ourpos = self.objects[self.tank_id]['position']
+        enemytankpos = self.objects[self.enemy_tank_id]['position']
 
+        comms.post_message({"shoot": calculateAngle(ourpos, enemytankpos), "move": 0})
 
-        print(ourpos, enemytankpos, file=sys.stderr)
-        if dx == 0:
-            if dy > 0:
-                angle = 90
-            else:
-                angle = 270
-        else:
-            acute_angle = math.degrees(math.atan(dy/dx))
-            if dx > 0:
-                angle = acute_angle
-            elif dy > 0 and dx < 0:
-                angle = 180 - acute_angle
-            else:
-                angle = -180 + acute_angle
-
-        
-        print("shooting at angle: ", angle, file=sys.stderr)
-        self.num += 1
-        comms.post_message({"shoot": angle, "move": 0})
