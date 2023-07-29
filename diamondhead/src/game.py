@@ -55,6 +55,7 @@ class Game:
 
         self.width = biggest_x
         self.height = biggest_y
+        self.turn = 0
 
     def read_next_turn_data(self):
         """
@@ -90,6 +91,39 @@ class Game:
 
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
 
-        comms.post_message({"shoot": random.uniform(0, random.randint(1, 360)), "move": 0})
+        self.turn += 1
 
+        if 0 < self.turn < 15:
+            corner = 0
+        elif 15 <= self.turn < 30:
+            corner = 1
+        elif 30 <= self.turn < 45:
+            corner = 2
+        else:
+            corner = 3
+    
+        for game_object in self.objects.values():
+            if game_object["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
+                corners = game_object["position"]
+
+        corner_indent = 150
+        destination = destination = corners[0]
+        if corner == 0:
+            destination = corners[0]
+            destination[0] += corner_indent
+            destination[1] -= corner_indent
+        elif corner == 1:
+            destination = corners[1]
+            destination[0] += corner_indent
+            destination[1] += corner_indent
+        elif corner == 2:
+            destination = corners[2]
+            destination[0] -= corner_indent
+            destination[1] += corner_indent
+        else:
+            destination = corners[3]
+            destination[0] -= corner_indent
+            destination[1] -= corner_indent
+
+        comms.post_message({"shoot": random.uniform(0, random.randint(1, 360)), "path": destination})
 

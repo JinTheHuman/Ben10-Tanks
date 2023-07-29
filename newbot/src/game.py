@@ -146,6 +146,7 @@ class Game:
         print(biggest_x, biggest_y, file=sys.stderr)
         
         self.bulletSpeed = None
+        self.endgame = False
 
     def read_next_turn_data(self):
         """
@@ -190,7 +191,7 @@ class Game:
         """
         This is where you should write your bot code to process the data and respond to the game.
         """
-
+        print("NEW TURN", file=sys.stderr)
         # Get Bullet speed
         if self.bulletSpeed == None:
             for obj in self.objects.values():
@@ -220,6 +221,9 @@ class Game:
         for game_object in self.objects.values():
             if game_object["type"] == ObjectTypes.BULLET.value:
                 bullets.append(game_object)
+            elif game_object["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
+                corners = game_object["position"]
+                corners_velocity = game_object["velocity"]
         
         angle = calculateAngle(mypos, predictedPos)
         for wall in walls:
@@ -229,17 +233,69 @@ class Game:
         print("Shooting at angle", angle, " to hit enemy at", predictedPos, "from mypost at", mypos, file=sys.stderr)
         
         if dontShoot:
-            print("Actually not shooting", file=sys.stderr)
+            closest_wall_dist = abs(corners[0][0] - mypos[0])
+            closest_wall = 1
+            
+            if abs(corners[2][0] - mypos[0]) < closest_wall_dist:
+                closest_wall_dist = abs(corners[2][0] - mypos[0])
+                closest_wall = 3
+            if abs(corners[0][1] - mypos[1]) + 40 < closest_wall_dist:
+                closest_wall_dist = abs(corners[0][1] - mypos[1])
+                closest_wall = 0
+            if abs(corners[1][1] - mypos[1]) + 40 < closest_wall_dist:
+                closest_wall_dist = abs(corners[1][1] - mypos[1])
+                closest_wall = 2
 
+            r = random.randint(0,3)
+            while (r == closest_wall or r == (closest_wall + 2) % 4):
+                r = random.randint(0, 3)
+            
+            newX, newY = predictedPos[0], predictedPos[1]
+            if r == 0:
+                newY = corners[0][1] + (corners[0][1] - predictedPos[1])
+            elif r == 1:
+                newX = corners[0][0] + (corners[0][0] - predictedPos[0])
+            elif r == 2:
+                newY = corners[1][1] + (corners[1][1] - predictedPos[1])
+            elif r == 3:
+                newX = corners[2][0] + (corners[2][0] - predictedPos[0])
+            
+            time = (math.dist(mypos, [newX, newY])/2) / self.bulletSpeed
+            d = abs(corners_velocity[1][1] * time)
+            
+            if r == 0:
+                newY = (corners[0][1] - d) + ((corners[0][1] - d) - predictedPos[1])
+            elif r == 1:
+                newX = (corners[0][0] + d) + ((corners[0][0] + d) - predictedPos[0])
+            elif r == 2:
+                newY = (corners[1][1] + d) + ((corners[1][1] + d) - predictedPos[1])
+            elif r == 3:
+                newX = (corners[2][0] - d) + ((corners[2][0] - d) - predictedPos[0])
+
+            predictedPos = [newX, newY]
+            
+            noise = random.uniform(-0.8, 0.8)
+            angle = calculateAngle(mypos, predictedPos) + noise
+            print("Bouncing off wall", r, file=sys.stderr)
+            dontShoot = False
+
+        # Get away from walls
+        boundary_limit = 80
+        if abs(mypos[1] - corners[0][1]) < boundary_limit or abs(mypos[1] - corners[1][1]) < boundary_limit or abs(mypos[0] - corners[0][0]) < boundary_limit or abs(mypos[0] - corners[2][1]) < boundary_limit:
+            print("Engame ", file=sys.stderr)
+            self.endgame = True
+        
         # Dodging bullets
 
         # Find Closest bullet
-        closest_bullet_dist = 999999
-        closest_bullet = -1
+        closest_bullet_dist = math.dist(mypos, bullets[0]["position"])
+        closest_bullet = 0
         for i, bullet in enumerate(bullets):
-            if math.dist(mypos, bullet["position"]) < closest_bullet_dist:
+            if math.dist(mypos, bullet["position"]) < closest_bullet_dist and math.dist(mypos, bullet["position"]) < 60:
+                dy = bullet["position"][1] - mypos[1]
                 dx = bullet["position"][0] - mypos[0]
-                if bullet["velocity"][0] * dx < 0:
+
+                if bullet["velocity"][0] * dx < 0 and bullet["velocity"][1] * dy < 0:
                     closest_bullet_dist = math.dist(mypos, bullet["position"])
                     closest_bullet = i
         
@@ -250,7 +306,7 @@ class Game:
             dy = closest_bullet_pos[1] - mypos[1]
             dx = closest_bullet_pos[0] - mypos[0]
             dist = math.dist(mypos, bullets[closest_bullet]["position"])
-            if dist < 100:
+            if dist < 60:
                 acute_angle = math.degrees(math.atan(dy/dx))
                 if dx > 0 and dy > 0:
                     movementAngle = acute_angle
@@ -263,12 +319,16 @@ class Game:
                     c = mypos[1]- mypos[0]
                     return math.tan(movementAngle + 90)*x + c
                 
-                if math.dist([mypos[0] + 0.1, f(mypos[0] + 0.1)], closest_bullet_pos) > dist:
-                    movementAngle += 90
-                else:
-                    movementAngle -= 90
+                dodge_direction = 90
+                if self.endgame:
+                    dodge_direction = 55
                 
-                print("dodging bullet at", closest_bullet_pos, " by dodging at angle ", movementAngle, file=sys.stderr)
+                if math.dist([mypos[0] + 0.1, f(mypos[0] + 0.1)], closest_bullet_pos) > dist:
+                    movementAngle += dodge_direction
+                else:
+                    movementAngle -= dodge_direction
+                
+                print("dodging bullet at", closest_bullet_pos,"coming with velocity", bullets[closest_bullet]["velocity"], " by dodging at angle ", movementAngle, "when i am at", mypos, file=sys.stderr)
 
                 if dontShoot:
                     comms.post_message({"move": movementAngle})
@@ -277,15 +337,20 @@ class Game:
                 comms.post_message({"shoot": angle, "move": movementAngle})
                 return
             
+        if self.endgame:
+            comms.post_message({"shoot": angle, "path": self.centre})
+            return
+        
         # Movement
-        for obj in self.objects.values():
-            if obj["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
-                corners = obj["position"]
-                break
-                # top_left = corners[0]
-                # bottom_left = corners[1]
-                # bottom_right = corners[2]
-                # top_right = corners[3]
+
+        # for obj in self.objects.values():
+        #     if obj["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
+        #         corners = obj["position"]
+    
+        # top_left = corners[0]
+        # bottom_left = corners[1]
+        # bottom_right = corners[2]
+        # top_right = corners[3]
 
         furthest_corner_from_enemy_dist = -1
         furthest_corner_from_enemy = -1
@@ -308,23 +373,24 @@ class Game:
             else:
                 furthest_corner_from_enemy -= 1
 
+        corner_indent = 150
         destination = self.centre
         if furthest_corner_from_enemy == 0:
             destination = corners[0]
-            destination[0] += 200
-            destination[1] -= 200
+            destination[0] += corner_indent
+            destination[1] -= corner_indent
         elif furthest_corner_from_enemy == 1:
             destination = corners[1]
-            destination[0] += 200
-            destination[1] += 200
+            destination[0] += corner_indent
+            destination[1] += corner_indent
         elif furthest_corner_from_enemy == 2:
             destination = corners[2]
-            destination[0] -= 200
-            destination[1] += 200
+            destination[0] -= corner_indent
+            destination[1] += corner_indent
         else:
             destination = corners[3]
-            destination[0] -= 200
-            destination[1] -= 200
+            destination[0] -= corner_indent
+            destination[1] -= corner_indent
 
         corner_names = ["top left", "bottom left", "bottom right", "top right"]
         print("pathing to ", corner_names[furthest_corner_from_enemy], file=sys.stderr)
