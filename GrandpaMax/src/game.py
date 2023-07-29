@@ -3,7 +3,35 @@ import random
 import comms
 import sys
 import json
+import math
 from object_types import ObjectTypes
+
+def calculateAngle(src, dst):
+    dy = dst[1] - src[1]
+    dx = dst[0] - src[0]
+
+    if dx == 0:
+        if dy > 0:
+            angle = 90
+        else:
+            angle = 270
+    else:
+        acute_angle = math.degrees(math.atan(dy/dx))
+        if dx > 0:
+            angle = acute_angle
+        elif dy > 0 and dx < 0:
+            angle = 180 - acute_angle
+        else:
+            angle = -180 + acute_angle
+
+    return angle
+
+def calculateDist(src, dst):
+    dy = dst[1] - src[1]
+    dx = dst[0] - src[0]
+
+    return math.sqrt(dx * dx + dy * dy)
+
 
 
 class Game:
@@ -20,6 +48,7 @@ class Game:
     def __init__(self):
         tank_id_message: dict = comms.read_message()
         self.tank_id = tank_id_message["message"]["your-tank-id"]
+        self.enemy_tank_id = tank_id_message["message"]["enemy-tank-id"]
 
         self.current_turn_message = None
 
@@ -57,6 +86,7 @@ class Game:
 
         self.width = biggest_x
         self.height = biggest_y
+        self.centre = [biggest_x / 2, biggest_y / 2]
         self.turn = 0
 
     def read_next_turn_data(self):
@@ -103,13 +133,71 @@ class Game:
         # shoot_direction = random.uniform(0, random.randint(1, 360))
         for o in self.objects:
             if self.objects[o]["type"] == ObjectTypes.CLOSING_BOUNDARY.value:
-                print(o, self.objects[o], file=sys.stderr)
+                # print(o, self.objects[o], file=sys.stderr)
+
+                corners = self.objects[o]["position"]
+                top_left = corners[0]
+                bottom_left = corners[1]
+                bottom_right = corners[2]
+                top_right = corners[3]
+
+                left_wall = corners[0][0]
+                top_wall = corners[0][1]
+                bottom_wall = corners[2][1]
+                right_wall = corners[2][0]
+
+        ourpos = self.objects[self.tank_id]['position']
+        enemypos = self.objects[self.enemy_tank_id]['position']
+
+        destination = self.centre
+        max_dist_from_enemy = 0
+
+        dist = calculateDist(enemypos, top_left)
+        if dist > max_dist_from_enemy:
+            max_dist_from_enemy = dist
+            destination = top_left
+            destination[0] += 100
+            destination[1] -= 100
+
+        dist = calculateDist(enemypos, bottom_left)
+        if dist > max_dist_from_enemy:
+            max_dist_from_enemy = dist
+            destination = bottom_left
+            destination[0] += 100
+            destination[1] += 100
+
+        dist = calculateDist(enemypos, bottom_right)
+        if dist > max_dist_from_enemy:
+            max_dist_from_enemy = dist
+            destination = bottom_right
+            destination[0] -= 100
+            destination[1] += 100
+
+        dist = calculateDist(enemypos, top_right)
+        if dist > max_dist_from_enemy:
+            max_dist_from_enemy = dist
+            destination = top_right
+            destination[0] -= 100
+            destination[1] -= 100
+
+        # if abs(ourpos[0] - left_wall) < 100 or abs(ourpos[0] - right_wall) < 100 or abs(ourpos[1] - top_wall) < 100 or abs(ourpos[1] - bottom_wall) < 100:
+        #     destination = self.centre
+
+        if self.turn > 30:
+            destination = self.centre
+
+        comms.post_message({
+            "path": destination,
+            "shoot": 180
+        })
+
+
 
         # print(json.dumps(self.objects, indent=2), file=sys.stderr)
 
-        comms.post_message({
-            "move": move_direction,
-            # "shoot": shoot_direction
-        })
+        # comms.post_message({
+        #     "move": move_direction,
+        #     # "shoot": shoot_direction
+        # })
 
 
