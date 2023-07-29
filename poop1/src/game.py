@@ -25,7 +25,41 @@ def calculateAngle(src, dst):
         else:
             angle = -180 + acute_angle
 
+    return getpositive(angle)
+
+def getAngleLeway(src, dst):
+    return math.degrees(math.atan(10/math.dist(src, dst)))
+
+def canHit(src, dst, angle):
+    leway = getAngleLeway(src, dst)
+    return calculateAngle(src, dst) - leway <= angle <= calculateAngle(src, dst) + leway
+
+def canhitwithbounce(src, wall, enemy):
+    alpha = calculateAngle(src, wall)
+    deflected = calculateAngle(wall, enemy)
+    if (deflected <=  getpositive(180 - alpha + getAngleLeway(wall, enemy))
+        and deflected >= getpositive(180 - alpha - getAngleLeway(wall, enemy))):
+        return alpha
+    
+    return None
+
+def getpositive(angle):
+    if angle < 0:
+        return angle + 360
     return angle
+
+def predictPos(src, dst, velocityTank, bulletSpeed):
+    dist = math.dist(src, dst)
+    time = dist/bulletSpeed
+    newPos = []
+    newPos.append(dst[0] + velocityTank[0] * time)
+    newPos.append(dst[1] + velocityTank[1] * time)
+
+    return newPos
+
+
+def wallhit(src, angle, wall):
+    return False
 
 class Game:
     
@@ -52,6 +86,7 @@ class Game:
         self.objects = {}
 
         next_init_message = comms.read_message()
+        print("next_Init: ", next_init_message, file=sys.stderr)
         while next_init_message != comms.END_INIT_SIGNAL:
             # At this stage, there won't be any "events" in the message. So we only care about the object_info.
             object_info: dict = next_init_message["message"]["updated_objects"]
@@ -94,6 +129,7 @@ class Game:
 
         self.width = biggest_x
         self.height = biggest_y
+        self.bulletSpeed = None
 
 
     def read_next_turn_data(self):
@@ -129,13 +165,40 @@ class Game:
         """
         This is where you should write your bot code to process the data and respond to the game.
         """
-        
+
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
         print(self.objects[self.tank_id], file=sys.stderr)
         print(self.objects[self.enemy_tank_id], file=sys.stderr)
+
+        if self.bulletSpeed == None:
+            for obj in self.objects.values():
+                if obj["type"] == ObjectTypes.BULLET.value:
+                    self.bulletSpeed = math.sqrt(obj["velocity"][0] ** 2 + obj["velocity"][1] **2)
+            comms.post_message({"shoot": 0, "move": 0})
+            return
+
+        walls = []
+        for game_object in self.objects.values():
+            if game_object["type"] == ObjectTypes.WALL.value:
+                walls.append(game_object)
         
         ourpos = self.objects[self.tank_id]['position']
         enemytankpos = self.objects[self.enemy_tank_id]['position']
+        predictedPos = enemytankpos #predictPos(ourpos, enemytankpos, self.objects[self.enemy_tank_id]['velocity'], self.bulletSpeed)
+        print(predictedPos, file=sys.stderr)
 
-        comms.post_message({"shoot": calculateAngle(ourpos, enemytankpos), "move": 0})
+        for wall in walls:
+            angle = canhitwithbounce(ourpos, wall['position'], predictedPos)
+            if angle != None:
+                break
+        
+        if angle == None:
+            for i in range(0, 359):
+                if canHit(ourpos, predictedPos, i):
+                    angle = i
+                    break
 
+        if angle == None:
+            angle = 0
+
+        comms.post_message({"shoot": angle, "move": 0})
