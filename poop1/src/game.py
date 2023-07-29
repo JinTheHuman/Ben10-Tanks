@@ -1,8 +1,8 @@
 import random
-
 import comms
 from object_types import ObjectTypes
-
+import sys
+import math
 
 class Game:
     """
@@ -18,7 +18,9 @@ class Game:
 
     def __init__(self):
         tank_id_message: dict = comms.read_message()
+        print("Init: ", tank_id_message, file=sys.stderr)
         self.tank_id = tank_id_message["message"]["your-tank-id"]
+        self.enemy_tank_id = tank_id_message["message"]["enemy-tank-id"]
 
         self.current_turn_message = None
 
@@ -68,6 +70,7 @@ class Game:
         self.height = biggest_y
         self.num = 0
 
+
     def read_next_turn_data(self):
         """
         It's our turn! Read what the game has sent us and update the game info.
@@ -102,6 +105,39 @@ class Game:
         This is where you should write your bot code to process the data and respond to the game.
         """
 
+
         # Write your code here... For demonstration, this bot just shoots randomly every turn.
+        the_message = self.current_turn_message
+        the_message = the_message['message']
+        print("after: ", the_message)
+
+        try:
+            ourpos = the_message['updated_objects'][self.tank_id]['position']
+            enemytankpos = the_message['updated_objects'][self.enemy_tank_id]['position']
+        except:
+            enemytankpos = [2,2]
+            ourpos = [1,1]
+        
+        dy = enemytankpos[1] - ourpos[1]
+        dx = enemytankpos[0] - ourpos[0]
+
+
+        print(ourpos, enemytankpos, file=sys.stderr)
+        if dx == 0:
+            if dy > 0:
+                angle = 90
+            else:
+                angle = 270
+        else:
+            acute_angle = math.degrees(math.atan(dy/dx))
+            if dx > 0:
+                angle = acute_angle
+            elif dy > 0 and dx < 0:
+                angle = 180 - acute_angle
+            else:
+                angle = -180 + acute_angle
+
+        
+        print("shooting at angle: ", angle, file=sys.stderr)
         self.num += 1
-        comms.post_message({"shoot": random.uniform(0, random.randint(1, 360)), "move": self.num})
+        comms.post_message({"shoot": angle, "move": 0})
